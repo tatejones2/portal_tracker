@@ -1,5 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
 import OpenAI from 'openai';
+
+if (existsSync('.env')) {
+  const envText = readFileSync('.env', 'utf8');
+  envText.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) return;
+    const [key, ...valueParts] = trimmed.split('=');
+    if (!process.env[key]) {
+      process.env[key] = valueParts.join('=').replace(/^["']|["']$/g, '');
+    }
+  });
+}
 
 type ResearchBody = {
   schoolName?: string;
@@ -129,7 +142,7 @@ createServer(async (req, res) => {
       return;
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_api_key_here') {
       sendJson(res, 200, fallback(schoolName, 'AI research is not configured. Add OPENAI_API_KEY on the server and review this school manually.'));
       return;
     }
