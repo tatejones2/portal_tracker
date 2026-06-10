@@ -53,7 +53,7 @@ Find the following information if available:
 - City and state
 - School website
 - Athletics website
-- Estimated tuition/cost of attendance
+- Official undergraduate tuition and cost of attendance
 - Whether the school has an undergraduate ${academicInterest} program
 - Whether the school has a graduate ${academicInterest} program
 - Whether the school has a closely related graduate computing/data/information systems program if it does not have an exact graduate ${academicInterest} program
@@ -69,6 +69,10 @@ Rules:
 - Do not include markdown.
 - If a field is uncertain or unavailable, use null or "unknown".
 - Do not invent exact tuition, records, or program details.
+- Use web search/tool results when available. Prefer official university, athletics, NCAA/conference, and map sources over memory.
+- For estimatedCostOfAttendance, use the official annual out-of-state undergraduate cost of attendance for a residential/on-campus student when available. Do not use tuition-only as estimatedCostOfAttendance.
+- Put the academic year and what the cost includes in costNotes. If the official cost page has multiple scenarios and you cannot tell which applies, set estimatedCostOfAttendance to null and explain the options in costNotes.
+- For driveDistanceFromBurlingtonNC and driveTimeFromBurlingtonNC, use a maps/directions source when available. If not available, set both to "Unknown" rather than estimating from memory.
 - For hasUndergradCS, return true, false, or "unknown".
 - For hasGradCS, return true, false, "unknown", or "related".
 - Use hasGradCS: "related" when the school has a closely related graduate program but not an exact Computer Science graduate program. Example: M.S. in Data and Information Management should use hasGradCS: "related".
@@ -137,12 +141,28 @@ const normalizeUnknownBoolean = (value: unknown) => {
   return 'unknown';
 };
 
-const isRelatedGradProgram = (programName: unknown, hasGradCS: unknown) => {
+const sourceText = (sources: unknown) => {
+  if (!Array.isArray(sources)) return '';
+  return sources
+    .map((source) => {
+      if (!source || typeof source !== 'object') return '';
+      const item = source as Record<string, unknown>;
+      return [item.title, item.fieldSupported, item.url].filter((value) => typeof value === 'string').join(' ');
+    })
+    .join(' ');
+};
+
+const extractRelatedGradProgramName = (text: string) => {
+  const dataInfoMatch = text.match(/(?:M\.?S\.?|Master of Science)\s+in\s+Data(?:\s+and\s+|\s*&\s*)Information Management/i);
+  if (dataInfoMatch) return 'M.S. in Data and Information Management';
+  return undefined;
+};
+
+const isRelatedGradProgram = (programName: unknown, hasGradCS: unknown, relatedText = '') => {
   if (hasGradCS === 'related') return true;
-  if (typeof programName !== 'string') return false;
-  const normalized = programName.toLowerCase();
+  const normalized = [typeof programName === 'string' ? programName : '', relatedText].join(' ').toLowerCase();
   const exactComputerScience = /\bcomputer science\b|\bcs\b/.test(normalized);
-  if (exactComputerScience) return false;
+  if (exactComputerScience && !/\bdoes not offer\b|\bnot offer\b|\bno graduate program in computer science\b/.test(normalized)) return false;
   return /\bdata\b|\binformation\b|\binformatics\b|\bsoftware\b|\bcyber\b|\bcomputing\b|\banalytics\b|\binformation systems\b/.test(normalized);
 };
 
@@ -199,6 +219,26 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
   const confidence = ['High', 'Medium', 'Low'].includes(String(input.confidence)) ? input.confidence : 'Low';
 
   const hasGradCS = normalizeUnknownBoolean(input.hasGradCS);
+  const relatedText = [input.aiResearchSummary, sourceText(input.aiSources)].filter((value) => typeof value === 'string').join(' ');
+  const relatedGradProgramName =
+    typeof input.gradCSProgramName === 'string' && input.gradCSProgramName.trim()
+      ? input.gradCSProgramName
+      : extractRelatedGradProgramName(relatedText);
+  const relatedGradSource =
+    Array.isArray(input.aiSources)
+      ? input.aiSources.find((source) => {
+          if (!source || typeof source !== 'object') return false;
+          const item = source as Record<string, unknown>;
+          return String(item.title ?? item.fieldSupported ?? '').toLowerCase().includes('data and information management');
+        })
+      : undefined;
+  const relatedGradUrl =
+    typeof input.gradCSUrl === 'string' && input.gradCSUrl.trim()
+      ? input.gradCSUrl
+      : relatedGradSource && typeof (relatedGradSource as Record<string, unknown>).url === 'string'
+        ? ((relatedGradSource as Record<string, unknown>).url as string)
+        : undefined;
+  const hasRelatedGradProgram = isRelatedGradProgram(relatedGradProgramName, hasGradCS, relatedText);
 
   return {
     ...input,
@@ -207,7 +247,9 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
     estimatedCostOfAttendance: normalizeNumber(input.estimatedCostOfAttendance),
     costTypeUsed,
     hasUndergradCS: normalizeUnknownBoolean(input.hasUndergradCS),
-    hasGradCS: isRelatedGradProgram(input.gradCSProgramName, hasGradCS) ? 'related' : hasGradCS,
+    hasGradCS: hasRelatedGradProgram ? 'related' : hasGradCS,
+    gradCSProgramName: relatedGradProgramName,
+    gradCSUrl: relatedGradUrl,
     driveTimeFromBurlingtonNC: normalizeDriveTime(input.driveTimeFromBurlingtonNC),
     driveDistanceFromBurlingtonNC: normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
     confidence,
@@ -244,6 +286,8 @@ createServer(async (req, res) => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const result = await client.responses.create({
       model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      temperature: 0,
+      tools: [{ type: 'web_search_preview' }],
       input: buildPrompt({ schoolName, homeLocation, academicInterest }),
     });
 
