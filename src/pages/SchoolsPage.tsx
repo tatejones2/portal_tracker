@@ -44,7 +44,7 @@ export const SchoolsPage = ({ schools, onAdd, onView, onEdit, onDelete }: Props)
         <div>
           <p className="eyebrow">School collection</p>
           <h2>Schools</h2>
-          <p>{visibleSchools.length} of {schools.length} schools shown</p>
+          <p>{visibleSchools.length} of {schools.length} schools shown. Yes* means a related computing graduate program.</p>
         </div>
         <div className="button-row">
           <button className={`icon-button ${viewMode === 'table' ? 'active' : ''}`} type="button" onClick={() => setViewMode('table')} aria-label="Table view"><Table2 size={18} /></button>

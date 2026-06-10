@@ -1,11 +1,11 @@
-import type { Priority, RecruitingStatus, School, UnknownBoolean } from '../types/school';
+import type { CSAvailability, Priority, RecruitingStatus, School, UnknownBoolean } from '../types/school';
 
 export type SchoolFilters = {
   query: string;
   status: 'all' | RecruitingStatus;
   offer: 'all' | 'yes' | 'no';
   undergradCS: 'all' | Extract<UnknownBoolean, boolean> | 'unknown';
-  gradCS: 'all' | Extract<UnknownBoolean, boolean> | 'unknown';
+  gradCS: 'all' | Extract<CSAvailability, boolean> | 'unknown' | 'related';
   priority: 'all' | Priority;
   conference: string;
   wishlistOnly: boolean;
@@ -42,6 +42,12 @@ const matchesUnknownBoolean = (value: UnknownBoolean | undefined, filter: School
   return (value ?? 'unknown') === filter;
 };
 
+const matchesCSAvailability = (value: CSAvailability | undefined, filter: SchoolFilters['gradCS']) => {
+  if (filter === 'all') return true;
+  if (filter === true) return value === true || value === 'related';
+  return (value ?? 'unknown') === filter;
+};
+
 export const filterSchools = (schools: School[], filters: SchoolFilters) => {
   const query = filters.query.trim().toLowerCase();
   return schools.filter((school) => {
@@ -64,7 +70,7 @@ export const filterSchools = (schools: School[], filters: SchoolFilters) => {
     if (filters.offer === 'yes' && !(school.offer?.hasOffer || school.status === 'Offer')) return false;
     if (filters.offer === 'no' && (school.offer?.hasOffer || school.status === 'Offer')) return false;
     if (!matchesUnknownBoolean(school.hasUndergradCS, filters.undergradCS)) return false;
-    if (!matchesUnknownBoolean(school.hasGradCS, filters.gradCS)) return false;
+    if (!matchesCSAvailability(school.hasGradCS, filters.gradCS)) return false;
     if (filters.priority !== 'all' && school.priority !== filters.priority) return false;
     if (filters.conference !== 'all' && school.baseballConference !== filters.conference) return false;
     if (filters.wishlistOnly && !(school.isWishlist || school.status === 'Wishlist')) return false;

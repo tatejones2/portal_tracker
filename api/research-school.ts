@@ -56,6 +56,7 @@ Find the following information if available:
 - Estimated tuition/cost of attendance
 - Whether the school has an undergraduate ${academicInterest} program
 - Whether the school has a graduate ${academicInterest} program
+- Whether the school has a closely related graduate computing/data/information systems program if it does not have an exact graduate ${academicInterest} program
 - Baseball conference
 - NCAA division
 - 2026 baseball team record
@@ -68,6 +69,9 @@ Rules:
 - Do not include markdown.
 - If a field is uncertain or unavailable, use null or "unknown".
 - Do not invent exact tuition, records, or program details.
+- For hasUndergradCS, return true, false, or "unknown".
+- For hasGradCS, return true, false, "unknown", or "related".
+- Use hasGradCS: "related" when the school has a closely related graduate program but not an exact Computer Science graduate program. Example: M.S. in Data and Information Management should use hasGradCS: "related".
 - Format driveTimeFromBurlingtonNC exactly like "2:40 hrs". Do not use "approx", "approximately", "hours", or "minutes".
 - Format driveDistanceFromBurlingtonNC like "190 miles". Do not use "approx" or "approximately".
 - Include source URLs when possible.
@@ -123,13 +127,23 @@ const fallback = (schoolName: string, reason: string) => ({
 });
 
 const normalizeUnknownBoolean = (value: unknown) => {
-  if (value === true || value === false || value === 'unknown') return value;
+  if (value === true || value === false || value === 'unknown' || value === 'related') return value;
   if (typeof value === 'string') {
     const normalized = value.toLowerCase();
     if (['yes', 'true', 'available'].includes(normalized)) return true;
+    if (['yes*', 'related', 'closely related', 'adjacent'].includes(normalized)) return 'related';
     if (['no', 'false', 'not available'].includes(normalized)) return false;
   }
   return 'unknown';
+};
+
+const isRelatedGradProgram = (programName: unknown, hasGradCS: unknown) => {
+  if (hasGradCS === 'related') return true;
+  if (typeof programName !== 'string') return false;
+  const normalized = programName.toLowerCase();
+  const exactComputerScience = /\bcomputer science\b|\bcs\b/.test(normalized);
+  if (exactComputerScience) return false;
+  return /\bdata\b|\binformation\b|\binformatics\b|\bsoftware\b|\bcyber\b|\bcomputing\b|\banalytics\b|\binformation systems\b/.test(normalized);
 };
 
 const normalizeNumber = (value: unknown) => {
@@ -184,6 +198,8 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
     : 'unknown';
   const confidence = ['High', 'Medium', 'Low'].includes(String(input.confidence)) ? input.confidence : 'Low';
 
+  const hasGradCS = normalizeUnknownBoolean(input.hasGradCS);
+
   return {
     ...input,
     tuitionInState: normalizeNumber(input.tuitionInState),
@@ -191,7 +207,7 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
     estimatedCostOfAttendance: normalizeNumber(input.estimatedCostOfAttendance),
     costTypeUsed,
     hasUndergradCS: normalizeUnknownBoolean(input.hasUndergradCS),
-    hasGradCS: normalizeUnknownBoolean(input.hasGradCS),
+    hasGradCS: isRelatedGradProgram(input.gradCSProgramName, hasGradCS) ? 'related' : hasGradCS,
     driveTimeFromBurlingtonNC: normalizeDriveTime(input.driveTimeFromBurlingtonNC),
     driveDistanceFromBurlingtonNC: normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
     confidence,

@@ -14,6 +14,7 @@ export type RecruitingStatus =
 
 export type Priority = 'High' | 'Medium' | 'Low';
 export type UnknownBoolean = boolean | 'unknown';
+export type CSAvailability = UnknownBoolean | 'related';
 export type Confidence = 'High' | 'Medium' | 'Low';
 
 export type OfferDetails = {
@@ -63,7 +64,7 @@ export type School = {
   hasUndergradCS?: UnknownBoolean;
   undergradCSProgramName?: string;
   undergradCSUrl?: string;
-  hasGradCS?: UnknownBoolean;
+  hasGradCS?: CSAvailability;
   gradCSProgramName?: string;
   gradCSUrl?: string;
   baseballConference?: string;

@@ -29,7 +29,7 @@ const valueForSort = (school: School, key: SortKey): string | number => {
     case 'undergradCS':
       return school.hasUndergradCS === true ? 2 : school.hasUndergradCS === false ? 0 : 1;
     case 'gradCS':
-      return school.hasGradCS === true ? 2 : school.hasGradCS === false ? 0 : 1;
+      return school.hasGradCS === true ? 3 : school.hasGradCS === 'related' ? 2 : school.hasGradCS === false ? 0 : 1;
     case 'conference':
       return school.baseballConference ?? '';
     case 'record':

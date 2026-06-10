@@ -66,8 +66,9 @@ export const SchoolCard = ({ school, onView, onEdit, onDelete }: Props) => (
   </article>
 );
 
-export const formatYesNo = (value?: boolean | 'unknown') => {
+export const formatYesNo = (value?: boolean | 'unknown' | 'related') => {
   if (value === true) return 'Yes';
+  if (value === 'related') return 'Yes*';
   if (value === false) return 'No';
   return 'Unknown';
 };

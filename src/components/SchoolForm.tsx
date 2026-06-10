@@ -137,9 +137,10 @@ export const SchoolForm = ({ initial = {}, submitLabel, onSubmit, onCancel }: Pr
           </label>
           <label>
             Grad CS
-            <select value={String(draft.hasGradCS ?? 'unknown')} onChange={(event) => patch({ hasGradCS: parseUnknownBoolean(event.target.value) })}>
+            <select value={String(draft.hasGradCS ?? 'unknown')} onChange={(event) => patch({ hasGradCS: parseCSAvailability(event.target.value) })}>
               <option value="unknown">Unknown</option>
               <option value="true">Yes</option>
+              <option value="related">Yes* related program</option>
               <option value="false">No</option>
             </select>
           </label>
@@ -234,6 +235,11 @@ const parseUnknownBoolean = (value: string): UnknownBoolean => {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return 'unknown';
+};
+
+const parseCSAvailability = (value: string) => {
+  if (value === 'related') return 'related';
+  return parseUnknownBoolean(value);
 };
 
 const patchNumber = (field: keyof School, value: string, patch: (updates: Partial<School>) => void) => {

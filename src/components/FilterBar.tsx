@@ -67,9 +67,10 @@ export const FilterBar = ({ filters, conferences, onChange }: Props) => {
             </label>
             <label>
               Grad CS
-              <select value={String(filters.gradCS)} onChange={(event) => patch({ gradCS: parseBooleanFilter(event.target.value) })}>
+              <select value={String(filters.gradCS)} onChange={(event) => patch({ gradCS: parseCSFilter(event.target.value) })}>
                 <option value="all">All</option>
                 <option value="true">Yes</option>
+                <option value="related">Yes* related</option>
                 <option value="false">No</option>
                 <option value="unknown">Unknown</option>
               </select>
@@ -117,6 +118,13 @@ const parseBooleanFilter = (value: string): SchoolFilters['undergradCS'] => {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return value as SchoolFilters['undergradCS'];
+};
+
+const parseCSFilter = (value: string): SchoolFilters['gradCS'] => {
+  if (value === 'related') return 'related';
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value as SchoolFilters['gradCS'];
 };
 
 const getActiveFilterCount = (filters: SchoolFilters) => {
