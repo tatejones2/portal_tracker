@@ -27,7 +27,6 @@ const columns: Array<{ key: SortKey; label: string }> = [
   { key: 'record', label: '2026 Record' },
   { key: 'driveTime', label: 'Drive' },
   { key: 'lastContactDate', label: 'Last Contact' },
-  { key: 'nextFollowUpDate', label: 'Follow-Up' },
   { key: 'priority', label: 'Priority' },
 ];
 
@@ -71,7 +70,6 @@ export const SchoolTable = ({ schools, sortKey, sortDirection, onSort, onView, o
             <td>{school.baseball2026Record || 'Unknown'}</td>
             <td>{school.driveTimeFromBurlingtonNC || 'Unknown'}</td>
             <td>{formatDate(school.lastContactDate)}</td>
-            <td>{formatDate(school.nextFollowUpDate)}</td>
             <td>{school.priority || 'Medium'}</td>
             <td>
               <div className="button-row compact">
