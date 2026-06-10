@@ -20,7 +20,33 @@ type ResearchBody = {
   academicInterest?: string;
 };
 
+type UserCorrection = {
+  schoolPattern: RegExp;
+  homePattern: RegExp;
+  hasUndergradCS?: true;
+  undergradCSProgramName?: string;
+  undergradCSUrl?: string;
+  driveTimeFromBurlingtonNC?: string;
+  driveDistanceFromBurlingtonNC?: string;
+  hasGradCS?: 'related';
+  gradCSProgramName?: string;
+  gradCSUrl?: string;
+};
+
 const port = Number(process.env.PORT || 8787);
+
+const userCorrections: UserCorrection[] = [
+  {
+    schoolPattern: /\bradford university\b/i,
+    homePattern: /\bburlington\b.*\bn(?:orth)?\.?\s*c(?:arolina)?\b|\bburlington,\s*nc\b/i,
+    hasUndergradCS: true,
+    undergradCSProgramName: 'Bachelor of Science in Computer Science',
+    undergradCSUrl: 'https://www.radford.edu/content/arts-sciences/home/departments/computer-science/undergraduate-programs.html',
+    driveTimeFromBurlingtonNC: '2:26 hrs',
+    hasGradCS: 'related',
+    gradCSProgramName: 'M.S. in Data and Information Management',
+  },
+];
 
 const sendJson = (res: ServerResponse, status: number, data: unknown) => {
   res.writeHead(status, {
@@ -212,7 +238,31 @@ const normalizeDriveDistance = (value: unknown) => {
     .trim();
 };
 
-const normalizeResearchResult = (input: Record<string, unknown>) => {
+const getUserCorrection = (schoolName: string, homeLocation: string) => {
+  return userCorrections.find(
+    (correction) => correction.schoolPattern.test(schoolName) && correction.homePattern.test(homeLocation),
+  );
+};
+
+const applyCorrectionSummary = (summary: unknown, schoolName: string, correction?: UserCorrection) => {
+  const currentSummary = typeof summary === 'string' ? summary : '';
+  if (!correction?.driveTimeFromBurlingtonNC) return currentSummary;
+
+  const cleaned = currentSummary
+    .replace(/Radford University offers both undergraduate and graduate programs in Computer Science[^.]*\./gi, 'Radford University offers an undergraduate Computer Science program.')
+    .replace(/(?:including|with)\s+a\s+Bachelor[^.]*Master[^.]*\./gi, '')
+    .replace(/(?:The\s+)?(?:estimated\s+)?driv(?:e|ing)\s+time[^.]*\./gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const correctionNote = `User-confirmed drive time from home to ${schoolName} is ${correction.driveTimeFromBurlingtonNC}.`;
+  const gradNote = correction.gradCSProgramName
+    ? `User-confirmed related graduate program: ${correction.gradCSProgramName}.`
+    : '';
+
+  return [cleaned, correctionNote, gradNote].filter(Boolean).join(' ');
+};
+
+const normalizeResearchResult = (input: Record<string, unknown>, schoolName: string, homeLocation: string) => {
   const costTypeUsed = ['in-state', 'out-of-state', 'unknown'].includes(String(input.costTypeUsed))
     ? input.costTypeUsed
     : 'unknown';
@@ -220,10 +270,12 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
 
   const hasGradCS = normalizeUnknownBoolean(input.hasGradCS);
   const relatedText = [input.aiResearchSummary, sourceText(input.aiSources)].filter((value) => typeof value === 'string').join(' ');
+  const correction = getUserCorrection(String(input.name || schoolName), homeLocation);
   const relatedGradProgramName =
-    typeof input.gradCSProgramName === 'string' && input.gradCSProgramName.trim()
+    correction?.gradCSProgramName ??
+    (typeof input.gradCSProgramName === 'string' && input.gradCSProgramName.trim()
       ? input.gradCSProgramName
-      : extractRelatedGradProgramName(relatedText);
+      : extractRelatedGradProgramName(relatedText));
   const relatedGradSource =
     Array.isArray(input.aiSources)
       ? input.aiSources.find((source) => {
@@ -233,11 +285,14 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
         })
       : undefined;
   const relatedGradUrl =
-    typeof input.gradCSUrl === 'string' && input.gradCSUrl.trim()
+    correction?.gradCSUrl ??
+    (correction?.gradCSProgramName
+      ? undefined
+      : typeof input.gradCSUrl === 'string' && input.gradCSUrl.trim()
       ? input.gradCSUrl
       : relatedGradSource && typeof (relatedGradSource as Record<string, unknown>).url === 'string'
         ? ((relatedGradSource as Record<string, unknown>).url as string)
-        : undefined;
+        : undefined);
   const hasRelatedGradProgram = isRelatedGradProgram(relatedGradProgramName, hasGradCS, relatedText);
 
   return {
@@ -246,12 +301,18 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
     tuitionOutOfState: normalizeNumber(input.tuitionOutOfState),
     estimatedCostOfAttendance: normalizeNumber(input.estimatedCostOfAttendance),
     costTypeUsed,
-    hasUndergradCS: normalizeUnknownBoolean(input.hasUndergradCS),
-    hasGradCS: hasRelatedGradProgram ? 'related' : hasGradCS,
+    hasUndergradCS: correction?.hasUndergradCS ?? normalizeUnknownBoolean(input.hasUndergradCS),
+    undergradCSProgramName:
+      correction?.undergradCSProgramName ??
+      (typeof input.undergradCSProgramName === 'string' ? input.undergradCSProgramName : undefined),
+    undergradCSUrl:
+      correction?.undergradCSUrl ?? (typeof input.undergradCSUrl === 'string' ? input.undergradCSUrl : undefined),
+    hasGradCS: correction?.hasGradCS ?? (hasRelatedGradProgram ? 'related' : hasGradCS),
     gradCSProgramName: relatedGradProgramName,
     gradCSUrl: relatedGradUrl,
-    driveTimeFromBurlingtonNC: normalizeDriveTime(input.driveTimeFromBurlingtonNC),
-    driveDistanceFromBurlingtonNC: normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
+    driveTimeFromBurlingtonNC: correction?.driveTimeFromBurlingtonNC ?? normalizeDriveTime(input.driveTimeFromBurlingtonNC),
+    driveDistanceFromBurlingtonNC: correction?.driveDistanceFromBurlingtonNC ?? normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
+    aiResearchSummary: applyCorrectionSummary(input.aiResearchSummary, String(input.name || schoolName), correction),
     confidence,
   };
 };
@@ -291,7 +352,7 @@ createServer(async (req, res) => {
       input: buildPrompt({ schoolName, homeLocation, academicInterest }),
     });
 
-    const parsed = normalizeResearchResult(parseJson(result.output_text));
+    const parsed = normalizeResearchResult(parseJson(result.output_text), schoolName, homeLocation);
     sendJson(res, 200, {
       ...fallback(schoolName, 'AI research completed. Review all fields before relying on them.'),
       ...parsed,
