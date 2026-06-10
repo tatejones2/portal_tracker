@@ -6,14 +6,13 @@ import { SchoolDetail } from './components/SchoolDetail';
 import { SchoolForm } from './components/SchoolForm';
 import { useSchools } from './hooks/useSchools';
 import { AddSchoolPage } from './pages/AddSchoolPage';
-import { DashboardPage } from './pages/DashboardPage';
 import { OffersPage } from './pages/OffersPage';
 import { SchoolsPage } from './pages/SchoolsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { WishlistPage } from './pages/WishlistPage';
 import type { School } from './types/school';
 
-export type View = 'dashboard' | 'schools' | 'add' | 'offers' | 'wishlist' | 'settings';
+export type View = 'schools' | 'add' | 'offers' | 'wishlist' | 'settings';
 
 const SETTINGS_KEY = 'portal-board-settings';
 
@@ -36,7 +35,7 @@ const readSettings = (): Settings => {
 
 function App() {
   const { schools, isLoading, create, update, remove, replaceAll, merge, clear } = useSchools();
-  const [activeView, setActiveView] = useState<View>('dashboard');
+  const [activeView, setActiveView] = useState<View>('schools');
   const [settings, setSettings] = useState(readSettings);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [editingSchool, setEditingSchool] = useState<School | null>(null);
@@ -90,9 +89,8 @@ function App() {
             onClear={clear}
           />
         );
-      case 'dashboard':
       default:
-        return <DashboardPage schools={schools} onAdd={() => setActiveView('add')} {...commonHandlers} />;
+        return <SchoolsPage schools={schools} onAdd={() => setActiveView('add')} {...commonHandlers} />;
     }
   };
 
