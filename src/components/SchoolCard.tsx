@@ -2,6 +2,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import type { School } from '../types/school';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate } from '../utils/formatDate';
+import { formatDriveTime } from '../utils/formatDriveTime';
 import { StatusBadge } from './StatusBadge';
 
 type Props = {
@@ -32,7 +33,7 @@ export const SchoolCard = ({ school, onView, onEdit, onDelete }: Props) => (
       </div>
       <div>
         <dt>Drive</dt>
-        <dd>{school.driveTimeFromBurlingtonNC || 'Unknown'}</dd>
+        <dd>{formatDriveTime(school.driveTimeFromBurlingtonNC)}</dd>
       </div>
       <div>
         <dt>Undergrad CS</dt>

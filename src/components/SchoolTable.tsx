@@ -2,6 +2,7 @@ import { ArrowDownUp, Pencil, Trash2 } from 'lucide-react';
 import type { School } from '../types/school';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate } from '../utils/formatDate';
+import { formatDriveTime } from '../utils/formatDriveTime';
 import type { SortDirection, SortKey } from '../utils/sortSchools';
 import { StatusBadge } from './StatusBadge';
 import { formatYesNo } from './SchoolCard';
@@ -68,7 +69,7 @@ export const SchoolTable = ({ schools, sortKey, sortDirection, onSort, onView, o
             <td>{formatYesNo(school.hasGradCS)}</td>
             <td>{school.baseballConference || 'Unknown'}</td>
             <td>{school.baseball2026Record || 'Unknown'}</td>
-            <td>{school.driveTimeFromBurlingtonNC || 'Unknown'}</td>
+            <td>{formatDriveTime(school.driveTimeFromBurlingtonNC)}</td>
             <td>{formatDate(school.lastContactDate)}</td>
             <td>{school.priority || 'Medium'}</td>
             <td>

@@ -2,6 +2,7 @@ import { ExternalLink, X } from 'lucide-react';
 import type { School } from '../types/school';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate } from '../utils/formatDate';
+import { formatDriveTime } from '../utils/formatDriveTime';
 import { SourceList } from './SourceList';
 import { StatusBadge } from './StatusBadge';
 import { formatYesNo } from './SchoolCard';
@@ -66,7 +67,7 @@ export const SchoolDetail = ({ school, onClose, onEdit }: Props) => {
             <p>{school.costNotes || 'No cost notes saved.'}</p>
           </Section>
           <Section title="Travel Info">
-            <Fact label="Drive time" value={school.driveTimeFromBurlingtonNC || 'Unknown'} />
+            <Fact label="Drive time" value={formatDriveTime(school.driveTimeFromBurlingtonNC)} />
             <Fact label="Drive distance" value={school.driveDistanceFromBurlingtonNC || 'Unknown'} />
             {school.mapsUrl ? <a href={school.mapsUrl} target="_blank" rel="noreferrer">Open map <ExternalLink size={14} /></a> : null}
           </Section>

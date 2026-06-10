@@ -68,6 +68,8 @@ Rules:
 - Do not include markdown.
 - If a field is uncertain or unavailable, use null or "unknown".
 - Do not invent exact tuition, records, or program details.
+- Format driveTimeFromBurlingtonNC exactly like "2:40 hrs". Do not use "approx", "approximately", "hours", or "minutes".
+- Format driveDistanceFromBurlingtonNC like "190 miles". Do not use "approx" or "approximately".
 - Include source URLs when possible.
 - Include confidence as High, Medium, or Low.
 
@@ -139,6 +141,43 @@ const normalizeNumber = (value: unknown) => {
   return undefined;
 };
 
+const normalizeDriveTime = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'unknown') return 'Unknown';
+
+  const existingFormat = trimmed.match(/^(\d+):([0-5]\d)\s*hrs?$/i);
+  if (existingFormat) return `${Number(existingFormat[1])}:${existingFormat[2]} hrs`;
+
+  const normalized = trimmed
+    .replace(/\bapprox(?:\.|imately)?\b/gi, '')
+    .replace(/\bestimated\b/gi, '')
+    .replace(/\babout\b/gi, '')
+    .trim();
+  const hourMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/i);
+  const minuteMatch = normalized.match(/(\d+)\s*(?:minutes?|mins?|m)\b/i);
+
+  if (hourMatch) {
+    const rawHours = Number(hourMatch[1]);
+    const wholeHours = Math.floor(rawHours);
+    const decimalMinutes = Math.round((rawHours - wholeHours) * 60);
+    const minutes = minuteMatch ? Number(minuteMatch[1]) : decimalMinutes;
+    return `${wholeHours}:${String(minutes).padStart(2, '0')} hrs`;
+  }
+
+  return normalized;
+};
+
+const normalizeDriveDistance = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  return value
+    .replace(/\bapprox(?:\.|imately)?\b/gi, '')
+    .replace(/\bestimated\b/gi, '')
+    .replace(/\babout\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 const normalizeResearchResult = (input: Record<string, unknown>) => {
   const costTypeUsed = ['in-state', 'out-of-state', 'unknown'].includes(String(input.costTypeUsed))
     ? input.costTypeUsed
@@ -153,6 +192,8 @@ const normalizeResearchResult = (input: Record<string, unknown>) => {
     costTypeUsed,
     hasUndergradCS: normalizeUnknownBoolean(input.hasUndergradCS),
     hasGradCS: normalizeUnknownBoolean(input.hasGradCS),
+    driveTimeFromBurlingtonNC: normalizeDriveTime(input.driveTimeFromBurlingtonNC),
+    driveDistanceFromBurlingtonNC: normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
     confidence,
   };
 };
