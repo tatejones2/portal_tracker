@@ -120,6 +120,43 @@ const fallback = (schoolName: string, reason: string) => ({
   confidence: 'Low',
 });
 
+const normalizeUnknownBoolean = (value: unknown) => {
+  if (value === true || value === false || value === 'unknown') return value;
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (['yes', 'true', 'available'].includes(normalized)) return true;
+    if (['no', 'false', 'not available'].includes(normalized)) return false;
+  }
+  return 'unknown';
+};
+
+const normalizeNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[$,]/g, ''));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const normalizeResearchResult = (input: Record<string, unknown>) => {
+  const costTypeUsed = ['in-state', 'out-of-state', 'unknown'].includes(String(input.costTypeUsed))
+    ? input.costTypeUsed
+    : 'unknown';
+  const confidence = ['High', 'Medium', 'Low'].includes(String(input.confidence)) ? input.confidence : 'Low';
+
+  return {
+    ...input,
+    tuitionInState: normalizeNumber(input.tuitionInState),
+    tuitionOutOfState: normalizeNumber(input.tuitionOutOfState),
+    estimatedCostOfAttendance: normalizeNumber(input.estimatedCostOfAttendance),
+    costTypeUsed,
+    hasUndergradCS: normalizeUnknownBoolean(input.hasUndergradCS),
+    hasGradCS: normalizeUnknownBoolean(input.hasGradCS),
+    confidence,
+  };
+};
+
 createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     sendJson(res, 204, {});
@@ -153,7 +190,7 @@ createServer(async (req, res) => {
       input: buildPrompt({ schoolName, homeLocation, academicInterest }),
     });
 
-    const parsed = parseJson(result.output_text);
+    const parsed = normalizeResearchResult(parseJson(result.output_text));
     sendJson(res, 200, {
       ...fallback(schoolName, 'AI research completed. Review all fields before relying on them.'),
       ...parsed,
