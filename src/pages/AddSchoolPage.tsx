@@ -74,7 +74,9 @@ export const AddSchoolPage = ({ homeLocation, academicInterest, onCreate }: Prop
       {researchResult ? (
         <section className="panel">
           <h2>Review AI-filled result</h2>
-          <p className="notice">AI-filled information should be reviewed for accuracy before relying on it.</p>
+          <p className="notice">
+            {researchResult.aiResearchSummary || 'AI-filled information should be reviewed for accuracy before relying on it.'}
+          </p>
           <SchoolForm
             initial={researchResult}
             submitLabel="Save School"
