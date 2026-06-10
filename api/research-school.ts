@@ -33,7 +33,23 @@ type UserCorrection = {
   gradCSUrl?: string;
 };
 
+type Coordinate = {
+  lat: number;
+  lon: number;
+};
+
+type TravelResult = {
+  driveTimeFromBurlingtonNC: string;
+  driveDistanceFromBurlingtonNC: string;
+  mapsUrl: string;
+  source: 'OpenStreetMap/Nominatim + OSRM';
+};
+
 const port = Number(process.env.PORT || 8787);
+const geocodeCache = new Map<string, Coordinate>();
+const nominatimEndpoint = process.env.NOMINATIM_ENDPOINT || 'https://nominatim.openstreetmap.org/search';
+const osrmEndpoint = process.env.OSRM_ENDPOINT || 'https://router.project-osrm.org/route/v1/driving';
+const mapsUserAgent = process.env.MAPS_USER_AGENT || 'PortalBoard/0.1 local-dev';
 
 const userCorrections: UserCorrection[] = [
   {
@@ -238,6 +254,105 @@ const normalizeDriveDistance = (value: unknown) => {
     .trim();
 };
 
+const formatRouteDuration = (seconds: number) => {
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')} hrs`;
+};
+
+const formatRouteDistance = (meters: number) => {
+  const miles = Math.round(meters / 1609.344);
+  return `${miles} miles`;
+};
+
+const geocode = async (query: string): Promise<Coordinate | null> => {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return null;
+  const cached = geocodeCache.get(normalizedQuery);
+  if (cached) return cached;
+
+  const url = new URL(nominatimEndpoint);
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('q', query);
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': mapsUserAgent,
+      Referer: 'http://127.0.0.1:5173',
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const results = (await response.json()) as Array<{ lat?: string; lon?: string }>;
+  const first = results[0];
+  if (!first?.lat || !first.lon) return null;
+
+  const coordinate = { lat: Number(first.lat), lon: Number(first.lon) };
+  if (!Number.isFinite(coordinate.lat) || !Number.isFinite(coordinate.lon)) return null;
+
+  geocodeCache.set(normalizedQuery, coordinate);
+  return coordinate;
+};
+
+const route = async (origin: Coordinate, destination: Coordinate) => {
+  const url = new URL(`${osrmEndpoint}/${origin.lon},${origin.lat};${destination.lon},${destination.lat}`);
+  url.searchParams.set('overview', 'false');
+  url.searchParams.set('alternatives', 'false');
+  url.searchParams.set('steps', 'false');
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': mapsUserAgent,
+      Referer: 'http://127.0.0.1:5173',
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const result = (await response.json()) as { routes?: Array<{ duration?: number; distance?: number }> };
+  const first = result.routes?.[0];
+  if (typeof first?.duration !== 'number' || typeof first.distance !== 'number') return null;
+
+  return {
+    duration: first.duration,
+    distance: first.distance,
+  };
+};
+
+const destinationQueryForSchool = (school: Record<string, unknown>, fallbackSchoolName: string) => {
+  return [
+    typeof school.name === 'string' ? school.name : fallbackSchoolName,
+    typeof school.fullLocation === 'string' ? school.fullLocation : [school.city, school.state].filter((value) => typeof value === 'string').join(', '),
+  ]
+    .filter(Boolean)
+    .join(', ');
+};
+
+const calculateTravel = async (
+  school: Record<string, unknown>,
+  fallbackSchoolName: string,
+  homeLocation: string,
+): Promise<TravelResult | null> => {
+  const originQuery = process.env.PLAYER_HOME_ADDRESS?.trim() || homeLocation;
+  const destinationQuery = destinationQueryForSchool(school, fallbackSchoolName);
+
+  const [origin, destination] = await Promise.all([geocode(originQuery), geocode(destinationQuery)]);
+  if (!origin || !destination) return null;
+
+  const routed = await route(origin, destination);
+  if (!routed) return null;
+
+  return {
+    driveTimeFromBurlingtonNC: formatRouteDuration(routed.duration),
+    driveDistanceFromBurlingtonNC: formatRouteDistance(routed.distance),
+    mapsUrl: `https://www.google.com/maps/dir/${encodeURIComponent(originQuery)}/${encodeURIComponent(destinationQuery)}`,
+    source: 'OpenStreetMap/Nominatim + OSRM',
+  };
+};
+
 const getUserCorrection = (schoolName: string, homeLocation: string) => {
   return userCorrections.find(
     (correction) => correction.schoolPattern.test(schoolName) && correction.homePattern.test(homeLocation),
@@ -262,7 +377,12 @@ const applyCorrectionSummary = (summary: unknown, schoolName: string, correction
   return [cleaned, correctionNote, gradNote].filter(Boolean).join(' ');
 };
 
-const normalizeResearchResult = (input: Record<string, unknown>, schoolName: string, homeLocation: string) => {
+const normalizeResearchResult = (
+  input: Record<string, unknown>,
+  schoolName: string,
+  homeLocation: string,
+  travelResult?: TravelResult | null,
+) => {
   const costTypeUsed = ['in-state', 'out-of-state', 'unknown'].includes(String(input.costTypeUsed))
     ? input.costTypeUsed
     : 'unknown';
@@ -310,8 +430,25 @@ const normalizeResearchResult = (input: Record<string, unknown>, schoolName: str
     hasGradCS: correction?.hasGradCS ?? (hasRelatedGradProgram ? 'related' : hasGradCS),
     gradCSProgramName: relatedGradProgramName,
     gradCSUrl: relatedGradUrl,
-    driveTimeFromBurlingtonNC: correction?.driveTimeFromBurlingtonNC ?? normalizeDriveTime(input.driveTimeFromBurlingtonNC),
-    driveDistanceFromBurlingtonNC: correction?.driveDistanceFromBurlingtonNC ?? normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
+    driveTimeFromBurlingtonNC:
+      correction?.driveTimeFromBurlingtonNC ?? travelResult?.driveTimeFromBurlingtonNC ?? normalizeDriveTime(input.driveTimeFromBurlingtonNC),
+    driveDistanceFromBurlingtonNC:
+      correction?.driveDistanceFromBurlingtonNC ??
+      travelResult?.driveDistanceFromBurlingtonNC ??
+      normalizeDriveDistance(input.driveDistanceFromBurlingtonNC),
+    mapsUrl: travelResult?.mapsUrl ?? (typeof input.mapsUrl === 'string' ? input.mapsUrl : undefined),
+    aiSources: [
+      ...(Array.isArray(input.aiSources) ? input.aiSources : []),
+      ...(travelResult
+        ? [
+            {
+              title: 'OpenStreetMap / OSRM route calculation',
+              url: travelResult.mapsUrl,
+              fieldSupported: 'Drive time and distance',
+            },
+          ]
+        : []),
+    ],
     aiResearchSummary: applyCorrectionSummary(input.aiResearchSummary, String(input.name || schoolName), correction),
     confidence,
   };
@@ -352,7 +489,9 @@ createServer(async (req, res) => {
       input: buildPrompt({ schoolName, homeLocation, academicInterest }),
     });
 
-    const parsed = normalizeResearchResult(parseJson(result.output_text), schoolName, homeLocation);
+    const rawParsed = parseJson(result.output_text);
+    const travelResult = await calculateTravel(rawParsed, schoolName, homeLocation);
+    const parsed = normalizeResearchResult(rawParsed, schoolName, homeLocation, travelResult);
     sendJson(res, 200, {
       ...fallback(schoolName, 'AI research completed. Review all fields before relying on them.'),
       ...parsed,
