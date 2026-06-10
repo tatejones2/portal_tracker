@@ -304,7 +304,34 @@ label {
 
 .filter-bar {
   display: grid;
+  gap: 12px;
+}
+
+.filter-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.advanced-filters {
+  display: grid;
   gap: 14px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-rust);
+  color: white;
+  font-size: 0.76rem;
+  line-height: 1;
 }
 
 .search-input {
@@ -762,6 +789,7 @@ label {
   }
 
   .metric-grid,
+  .filter-summary,
   .filter-grid,
   .form-grid,
   .settings-grid,
