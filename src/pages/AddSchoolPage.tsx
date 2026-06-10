@@ -17,7 +17,7 @@ export const AddSchoolPage = ({ homeLocation, academicInterest, onCreate }: Prop
   const [isResearching, setIsResearching] = useState(false);
   const [error, setError] = useState('');
 
-  const runResearch = async (addAfterResearch: boolean) => {
+  const runResearch = async () => {
     if (!schoolName.trim()) {
       setError('Enter a school name before researching.');
       return;
@@ -29,16 +29,10 @@ export const AddSchoolPage = ({ homeLocation, academicInterest, onCreate }: Prop
       const draft = {
         ...result,
         name: result.name || schoolName,
-        status: addAfterResearch ? 'Not Contacted' : result.status || 'Not Contacted',
+        status: result.status || 'Not Contacted',
         confidence: result.confidence || 'Low',
       } as Partial<School>;
-      if (addAfterResearch) {
-        await onCreate(draft);
-        setSchoolName('');
-        setResearchResult(null);
-      } else {
-        setResearchResult(draft);
-      }
+      setResearchResult(draft);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'School research could not be completed. You can try again or add the school manually.');
     } finally {
@@ -66,10 +60,10 @@ export const AddSchoolPage = ({ homeLocation, academicInterest, onCreate }: Prop
           <input value={schoolName} onChange={(event) => setSchoolName(event.target.value)} placeholder="East Tennessee State University" />
         </label>
         <div className="button-row">
-          <button className="button primary" type="button" onClick={() => void runResearch(false)} disabled={isResearching}>
+          <button className="button primary" type="button" onClick={() => void runResearch()} disabled={isResearching}>
             <Sparkles size={18} /> Research School
           </button>
-          <button className="button secondary" type="button" onClick={() => void runResearch(true)} disabled={isResearching}>
+          <button className="button secondary" type="button" onClick={() => void runResearch()} disabled={isResearching}>
             Research & Add
           </button>
         </div>

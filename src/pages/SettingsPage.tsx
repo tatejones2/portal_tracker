@@ -84,7 +84,7 @@ export const SettingsPage = ({ schools, homeLocation, academicInterest, onHomeLo
       <ConfirmDialog
         open={Boolean(pendingImport)}
         title="Import schools?"
-        body={`Import ${pendingImport?.length ?? 0} schools. Choose Delete to replace existing data, or Cancel and use merge from the inline controls.`}
+        body={`Import ${pendingImport?.length ?? 0} schools. Replace will overwrite existing local data; Merge will keep existing schools and add imported records.`}
         confirmLabel="Replace"
         onCancel={() => setPendingImport(null)}
         onConfirm={() => {
